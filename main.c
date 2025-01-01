@@ -22,9 +22,14 @@ void extend_table(Table * table,bool flag){
    if(flag){
         table->size=100;
         table->table=(key_value *)malloc(100*sizeof(key_value));
+        for(int i=0;i<table->size;i++){
+            table->table[i].key=NULL;
+            table->table[i].value=NULL; 
+        }
    }else{
         table->size*=2; 
         table->table=(key_value *)realloc(table->table,table->size*sizeof(key_value));
+        //rehashing and extending
    }
 }
 
@@ -49,30 +54,74 @@ long long hash(char * key,Table * table){
 }
 
 
-void insert(char * key,char * value,Table *table){  
-   long long index=hash(key,table);
-   table->table[index].key=key;
-   table->table[index].value=value;
+void insert(char * key,char * value,Table * hash_table){  
+   long long index=hash(key,hash_table);
+   if(hash_table->table[index].key==NULL){
+   hash_table->table[index].key=key;
+   hash_table->table[index].value=value;
+   }else{
+    key_value * next=malloc(sizeof(key_value));
+    next->key=key;
+    next->value=value;
+    next->chain=NULL;
+    key_value * head=&(hash_table->table[index]);
+    while(head->chain!=NULL){
+        head=head->chain;
+    }
+    head->chain=next;
+   }
+
 }
 
 
 void del(char * key,Table * table){
    long long index=hash(key,table);
-   free(table->table[index].key);
-   table->table[index].key=NULL;
-   free(table->table[index].value);
-   table->table[index].value=NULL;
+   key_value * head=&(table->table[index]);
+   if(strcmp(head->key,key)==0){
+      if(head->chain==NULL){
+          free(head->key);
+          free(head->value);
+          head->key=NULL;
+          head->value=NULL;
+      }else{
+         key_value * next=head->chain;
+         head->key=next->key;
+         head->value=next->value;
+         head->chain=next->chain;
+         free(next);
+      }
+
+   }else{
+    key_value * prev=head;
+    head=head->chain;
+    while(head!=NULL) {
+        if(strcmp(head->key,key)==0){
+            prev->chain=head->chain;
+            free(head);
+            break;
+        }
+        prev=head;
+        head=head->chain;
+    }
+
+
+   }
 }
 
 
-
-
-
-
-
-
-
-
+char * get(char * key,Table * table){
+   long long index=hash(key,table);
+   key_value * head=&(table->table[index]);
+   while(head!=NULL){
+    if(strcmp(head->key,key)==0) {
+        printf("value : %s",head->value);
+        return head->value;
+    }
+    head=head->chain;
+   }
+   printf("Key is not present");
+   return NULL;
+}
 
 
 
@@ -80,13 +129,13 @@ void del(char * key,Table * table){
 
 
 void handle_cli(Table * hash_table) {
-    char input[1000];
-    char command[50];
+    
     int kv_size=100;
-    int a, b;
 
     while (1) {
         printf("redis:$ ");
+        char input[1000];
+        char command[50];
         fgets(input, sizeof(input), stdin);
 
         // remove trailing newline character from fgets
@@ -104,16 +153,25 @@ void handle_cli(Table * hash_table) {
             } else {
                 printf("usage: del <key>\n");
             }
-        } else if (strcmp(command, "push") == 0) {
+        } else if (strcmp(command, "set") == 0) {
             char * key=malloc(kv_size*sizeof(char));
             char * value=malloc(kv_size*sizeof(char));
             // expect two integers after the "add" command
-            if (sscanf(input, "push %s %s", key, value) == 2) {
+            if (sscanf(input, "set %s %s", key, value) == 2) {
                 insert(key,value,hash_table);
             } else {
-                printf("usage: insert <key> <value>\n");
+                printf("usage: set <key> <value>\n");
+            } 
+        } else if(strcmp(command,"get")==0){
+             char key[kv_size];
+            // expect two integers after the "add" command
+            if (sscanf(input, "get %s",key) == 1) {
+                get(key,hash_table);
+            } else {
+                printf("usage: get <key>\n");
             }
-        } else if (strcmp(command, "exit") == 0) {
+
+        }else if (strcmp(command, "exit") == 0) {
             break;  // exit the loop and the program
         } else {
             printf("unknown command: %s\n", command);
@@ -127,9 +185,17 @@ Table * hash_table=malloc(sizeof(Table));
 extend_table(hash_table,1);
 handle_cli(hash_table);
 for(int i=0;i<hash_table->size;i++){
-        printf("key : %s value : %s \n",hash_table->table[i].key,hash_table->table[i].value);
-}
+      
+        key_value * head=&(hash_table->table[i]);
+        while(head!=NULL){
+           printf("key : %s value : %s",head->key,head->value);
+           printf(" -> ");
+           head=head->chain;
 
+        }
+        printf("NULL \n");
+}
+free(hash_table);
 
 return 0;
 }
