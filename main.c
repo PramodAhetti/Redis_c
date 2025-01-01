@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #define table_size 100
-
+int kv_size=100;
 typedef struct key_value{
     char * key;
     char * value;
@@ -16,22 +16,6 @@ typedef struct Table{
 key_value * table;
 long long size;
 }Table;
-
-
-void extend_table(Table * table,bool flag){
-   if(flag){
-        table->size=100;
-        table->table=(key_value *)malloc(100*sizeof(key_value));
-        for(int i=0;i<table->size;i++){
-            table->table[i].key=NULL;
-            table->table[i].value=NULL; 
-        }
-   }else{
-        table->size*=2; 
-        table->table=(key_value *)realloc(table->table,table->size*sizeof(key_value));
-        //rehashing and extending
-   }
-}
 
 
 
@@ -53,6 +37,24 @@ long long hash(char * key,Table * table){
 
 }
 
+void free_table(Table * hash_table,bool flag){
+for(int i=0;i<hash_table->size;i++){
+        key_value * head=&(hash_table->table[i]);
+        key_value * temp;
+        while(head!=NULL){
+           temp=head;
+           head=head->chain;
+           free(temp->key);
+           free(temp->value);
+           free(temp);
+        }
+}
+free(hash_table->table);
+if(flag){
+free(hash_table);
+}
+
+}
 
 void insert(char * key,char * value,Table * hash_table){  
    long long index=hash(key,hash_table);
@@ -127,6 +129,34 @@ char * get(char * key,Table * table){
 
 
 
+Table * extend_table(Table * table,bool flag){
+   if(flag){
+        table->size=100;
+        table->table=(key_value *)malloc(table->size*sizeof(key_value));
+        for(int i=0;i<table->size;i++){
+            table->table[i].key=NULL;
+            table->table[i].value=NULL; 
+        }
+        return table;
+   }else{
+        Table * new_table=malloc(sizeof(Table));
+        new_table->size=table->size*2;
+        new_table->table=(key_value *)malloc(new_table->size*sizeof(key_value));
+        for(int i=0;i<table->size;i++){
+            if(table->table[i].key!=NULL){
+                 
+                     char * new_key=malloc(kv_size*sizeof(char));
+                     char * new_value=malloc(kv_size*sizeof(char));
+                     strcpy(new_key,table->table[i].key);
+                     strcpy(new_value,table->table[i].value);
+                     insert(new_key,new_value,new_table);
+            }
+        }
+        free_table(table,0);
+        return new_table;
+   }
+}
+
 
 void handle_cli(Table * hash_table) {
     
@@ -182,8 +212,9 @@ void handle_cli(Table * hash_table) {
 
 int main(){
 Table * hash_table=malloc(sizeof(Table));
-extend_table(hash_table,1);
+hash_table=extend_table(hash_table,1);
 handle_cli(hash_table);
+
 for(int i=0;i<hash_table->size;i++){
       
         key_value * head=&(hash_table->table[i]);
@@ -195,7 +226,19 @@ for(int i=0;i<hash_table->size;i++){
         }
         printf("NULL \n");
 }
-free(hash_table);
+hash_table=extend_table(hash_table,0);
+for(int i=0;i<hash_table->size;i++){
+      
+        key_value * head=&(hash_table->table[i]);
+        while(head!=NULL){
+           printf("key : %s value : %s",head->key,head->value);
+           printf(" -> ");
+           head=head->chain;
+
+        }
+        printf("NULL \n");
+}
+free_table(hash_table,1);
 
 return 0;
 }
